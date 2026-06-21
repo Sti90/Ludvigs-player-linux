@@ -25,12 +25,12 @@ A sleek and modern media player for Linux, built with Tauri v2 and React.
 
 Download the latest release from [Releases](../../releases) as an `.rpm` or `.deb` package.
 
-### RPM
+### RPM (Fedora, openSUSE, etc.)
 ```bash
 sudo rpm -i ludvis-mediaspiller_0.1.1_x86_64.rpm
 ```
 
-### DEB
+### DEB (Ubuntu, Debian, etc.)
 ```bash
 sudo dpkg -i ludvis-mediaspiller_0.1.1_amd64.deb
 ```
