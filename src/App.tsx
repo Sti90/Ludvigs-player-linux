@@ -230,6 +230,7 @@ export default function App() {
   const [showPlaylist, setShowPlaylist] = useState(false);
   const [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set());
   const [previousVolume, setPreviousVolume] = useState(0.7);
+  const [volume, setVolume] = useState(0.7);
   const [appTitle, setAppTitle] = useState(() => {
     return localStorage.getItem('ludvis_mediaspiller_app_title') || 'Ludvis - Mediaspiller';
   });
@@ -359,7 +360,7 @@ export default function App() {
         artist: t.artist,
         path: t.path,
         duration: t.duration || 0,
-        coverUrl: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500&q=80',
+        coverUrl: t.cover_url ? convertFileSrc(t.cover_url) : 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500&q=80',
         lyrics: `${t.path}`
       }));
 
@@ -422,6 +423,12 @@ export default function App() {
         playerName: payload.player_name || 'None',
         volume: payload.volume !== undefined ? payload.volume : 0.7
       });
+      
+      // Keep volume in sync only if we are playing MPRIS system audio (not local mode)
+      if (payload.player_name !== 'None' && !isLocalMode) {
+        setVolume(payload.volume !== undefined ? payload.volume : 0.7);
+      }
+
       if (payload.position !== undefined) {
         mprisSyncRef.current = {
           position: payload.position,
@@ -436,7 +443,7 @@ export default function App() {
     return () => {
       if (unlisten) unlisten();
     };
-  }, []);
+  }, [isLocalMode]);
 
   // Sync current time with title changes (MPRIS)
   useEffect(() => {
@@ -466,9 +473,9 @@ export default function App() {
   // Sync volume with local audio element
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = mprisState.volume;
+      audioRef.current.volume = volume;
     }
-  }, [mprisState.volume]);
+  }, [volume]);
 
   // Local play/pause trigger
   useEffect(() => {
@@ -490,17 +497,37 @@ export default function App() {
 
   // Load local track when index changes or track list changes
   useEffect(() => {
+    let active = true;
     if (audioRef.current && isLocalMode && currentTrack) {
-      const audioUrl = currentTrack.path ? convertFileSrc(currentTrack.path) : currentTrack.audioUrl;
-      if (audioUrl) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.load();
-        setLocalTime(0);
-        if (isPlayingLocal) {
-          audioRef.current.play().catch(console.error);
+      const loadAudio = async () => {
+        try {
+          let audioUrl = currentTrack.audioUrl;
+          if (currentTrack.path) {
+            const port = await invoke<number>('get_audio_server_port');
+            if (!active) return;
+            const encodedPath = encodeURIComponent(currentTrack.path);
+            audioUrl = `http://127.0.0.1:${port}/music?path=${encodedPath}`;
+          }
+
+          if (audioRef.current && audioUrl) {
+            audioRef.current.src = audioUrl;
+            audioRef.current.load();
+            setLocalTime(0);
+            if (isPlayingLocal) {
+              audioRef.current.play().catch(console.error);
+            }
+          }
+        } catch (err) {
+          console.error("Feil ved innlasting av lydfil:", err);
         }
-      }
+      };
+
+      loadAudio();
     }
+
+    return () => {
+      active = false;
+    };
   }, [currentTrackIndex, localTracks, isLocalMode]);
 
   const handleLocalTimeUpdate = () => {
@@ -590,13 +617,14 @@ export default function App() {
   };
 
   const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
     setMprisState((prev) => ({ ...prev, volume: newVolume }));
     invoke('mpris_set_volume', { volume: newVolume }).catch(console.error);
   };
 
   const toggleMute = () => {
-    if (mprisState.volume > 0) {
-      setPreviousVolume(mprisState.volume);
+    if (volume > 0) {
+      setPreviousVolume(volume);
       handleVolumeChange(0);
     } else {
       handleVolumeChange(previousVolume || 1.0);
@@ -1320,13 +1348,13 @@ export default function App() {
                     <button 
                       onClick={toggleMute}
                       className="text-zinc-400 hover:text-white transition-colors duration-200"
-                      title={mprisState.volume === 0 ? "Opphev demping" : "Demp"}
+                      title={volume === 0 ? "Opphev demping" : "Demp"}
                     >
-                      {mprisState.volume === 0 ? (
+                      {volume === 0 ? (
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
                         </svg>
-                      ) : mprisState.volume < 0.4 ? (
+                      ) : volume < 0.4 ? (
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
                         </svg>
@@ -1341,12 +1369,12 @@ export default function App() {
                       min="0"
                       max="1"
                       step="0.01"
-                      value={mprisState.volume}
+                      value={volume}
                       onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
                       className="flex-1 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white hover:bg-white/20 transition-all duration-200"
                     />
                     <span className="text-[10px] text-zinc-500 font-mono w-8 text-right select-none">
-                      {Math.round(mprisState.volume * 100)}%
+                      {Math.round(volume * 100)}%
                     </span>
                   </div>
 

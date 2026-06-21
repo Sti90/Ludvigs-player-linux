@@ -28,6 +28,7 @@
         "enable": true,
         "scope": [
           "$HOME/**/*",
+          "$HOME/.config/ludvis-mediaspiller/covers/**/*",
           "/tmp/**/*",
           "/run/user/**/*"
         ]
