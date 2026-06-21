@@ -2,6 +2,11 @@
 
 A sleek and modern media player for Linux, built with Tauri v2 and React.
 
+## Screenshots
+
+![Main Player](screenshots/main.png)
+![Settings](screenshots/settings.png)
+
 ## Features
 
 - 🎵 **Local Music** – Scan and play audio files from your own folders
