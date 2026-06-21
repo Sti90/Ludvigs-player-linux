@@ -1,0 +1,54 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Ludvis-Mediaspiller",
+  "version": "0.1.1",
+  "identifier": "com.md-vinyl.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Ludvis - Mediaspiller",
+        "width": 970,
+        "height": 750,
+        "resizable": true,
+        "fullscreen": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$HOME/**/*",
+          "/tmp/**/*",
+          "/run/user/**/*"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb",
+      "rpm"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  }
+}
