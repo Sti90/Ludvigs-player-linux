@@ -69,6 +69,7 @@ struct MprisState {
   cover_url: String,
   is_playing: bool,
   duration: f64,
+  position: f64,
   player_name: String,
   volume: f64,
 }
@@ -122,6 +123,7 @@ fn emit_current_state(app_handle: &tauri::AppHandle, player: &mpris::Player) {
   
   let is_playing = player.get_playback_status().map(|s| s == mpris::PlaybackStatus::Playing).unwrap_or(false);
   let duration = metadata.as_ref().and_then(|m| m.length()).map(|d| d.as_secs_f64()).unwrap_or(0.0);
+  let position = player.get_position().map(|d| d.as_secs_f64()).unwrap_or(0.0);
   let player_name = player.identity().to_string();
   let volume = player.get_volume().unwrap_or(1.0);
 
@@ -132,6 +134,7 @@ fn emit_current_state(app_handle: &tauri::AppHandle, player: &mpris::Player) {
     cover_url,
     is_playing,
     duration,
+    position,
     player_name,
     volume,
   };
@@ -139,8 +142,69 @@ fn emit_current_state(app_handle: &tauri::AppHandle, player: &mpris::Player) {
   let _ = app_handle.emit("mpris-media-state", state);
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct GraphicsSettings {
+  backend: String,
+  disable_dmabuf: bool,
+  disable_compositing: bool,
+}
+
+impl Default for GraphicsSettings {
+  fn default() -> Self {
+    Self {
+      backend: "auto".to_string(),
+      disable_dmabuf: false,
+      disable_compositing: false,
+    }
+  }
+}
+
+fn get_graphics_config_path() -> PathBuf {
+  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+  PathBuf::from(home).join(".config").join("ludvis-mediaspiller").join("graphics.json")
+}
+
+#[tauri::command]
+fn get_graphics_settings() -> Result<GraphicsSettings, String> {
+  let path = get_graphics_config_path();
+  if !path.exists() {
+    return Ok(GraphicsSettings::default());
+  }
+  let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+  let settings: GraphicsSettings = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+  Ok(settings)
+}
+
+#[tauri::command]
+fn save_graphics_settings(settings: GraphicsSettings) -> Result<(), String> {
+  let path = get_graphics_config_path();
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+  }
+  let content = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+  fs::write(path, content).map_err(|e| e.to_string())?;
+  Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  // Load and apply graphics settings before Tauri starts up
+  if let Ok(settings_json) = fs::read_to_string(get_graphics_config_path()) {
+    if let Ok(settings) = serde_json::from_str::<GraphicsSettings>(&settings_json) {
+      match settings.backend.as_str() {
+        "x11" => std::env::set_var("GDK_BACKEND", "x11"),
+        "wayland" => std::env::set_var("GDK_BACKEND", "wayland"),
+        _ => {}
+      }
+      if settings.disable_dmabuf {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+      }
+      if settings.disable_compositing {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+      }
+    }
+  }
+
   tauri::Builder::default()
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -169,19 +233,6 @@ pub fn run() {
           loop {
             if let Ok(player) = finder.find_active() {
               emit_current_state(&app_handle, &player);
-
-              if let Ok(events) = player.events() {
-                for event in events {
-                  match event {
-                    Ok(_) => {
-                      emit_current_state(&app_handle, &player);
-                    }
-                    Err(_) => {
-                      break;
-                    }
-                  }
-                }
-              }
             } else {
               use tauri::Emitter;
               let _ = app_handle.emit("mpris-media-state", MprisState {
@@ -191,11 +242,12 @@ pub fn run() {
                 cover_url: "".to_string(),
                 is_playing: false,
                 duration: 0.0,
+                position: 0.0,
                 player_name: "None".to_string(),
                 volume: 1.0,
               });
             }
-            std::thread::sleep(Duration::from_secs(2));
+            std::thread::sleep(Duration::from_millis(500));
           }
         });
       }
@@ -207,7 +259,9 @@ pub fn run() {
       mpris_next,
       mpris_prev,
       mpris_set_volume,
-      scan_local_music
+      scan_local_music,
+      get_graphics_settings,
+      save_graphics_settings
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

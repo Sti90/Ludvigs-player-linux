@@ -32,12 +32,12 @@ Download the latest release from [Releases](../../releases) as an `.rpm` or `.de
 
 ### RPM (Fedora, openSUSE, etc.)
 ```bash
-sudo rpm -i ludvis-mediaspiller_0.1.1_x86_64.rpm
+sudo rpm -i ludvis-mediaspiller_0.1.9_x86_64.rpm
 ```
 
 ### DEB (Ubuntu, Debian, etc.)
 ```bash
-sudo dpkg -i ludvis-mediaspiller_0.1.1_amd64.deb
+sudo dpkg -i ludvis-mediaspiller_0.1.9_amd64.deb
 ```
 
 ## License

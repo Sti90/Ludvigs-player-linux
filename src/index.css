@@ -184,3 +184,16 @@ code {
   transform: rotateY(180deg);
 }
 
+.font-cursive {
+  font-family: 'Pacifico', cursive;
+}
+
+@keyframes fadeInBg {
+  from { opacity: 0; }
+  to { opacity: 0.22; }
+}
+
+.animate-fade-in-bg {
+  animation: fadeInBg 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+

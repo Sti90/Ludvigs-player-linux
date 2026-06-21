@@ -15,44 +15,7 @@ interface Track {
   duration?: number;
 }
 
-const MOCK_PLAYLIST: Track[] = [
-  {
-    id: 1,
-    title: 'SoundHelix Song 1',
-    artist: 'SoundHelix',
-    lyrics: 'A beautiful synth and drum progression perfect for coding.',
-    coverUrl: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500&q=80',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    duration: 372,
-  },
-  {
-    id: 2,
-    title: 'SoundHelix Song 2',
-    artist: 'SoundHelix',
-    lyrics: 'Melodic keyboards guiding a relaxed electronic beat.',
-    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-    duration: 425,
-  },
-  {
-    id: 3,
-    title: 'SoundHelix Song 3',
-    artist: 'SoundHelix',
-    lyrics: 'Energetic upbeat retro synthesizer melodies.',
-    coverUrl: 'https://images.unsplash.com/photo-1498804103079-a6351b050096?w=500&q=80',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-    duration: 344,
-  },
-  {
-    id: 4,
-    title: 'SoundHelix Song 4',
-    artist: 'SoundHelix',
-    lyrics: 'Warm and smooth basslines with crisp percussion.',
-    coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-    duration: 302,
-  },
-];
+const MOCK_PLAYLIST: Track[] = [];
 
 interface MprisState {
   title: string;
@@ -112,7 +75,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     playbackFolderPlaceholder: 'F.eks. ~/Music eller full bane',
     scan: 'Skann',
     scanning: 'Skanner...',
-    noSongsFound: 'Ingen støttede lydfiler funnet i denne mappen.',
+    noSongsFound: 'her var det tomt ??',
     totalSongs: 'Totalt',
     connectLive: 'Koble til Live',
     mute: 'Demp',
@@ -137,7 +100,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     playbackFolderPlaceholder: 'E.g. ~/Music or full path',
     scan: 'Scan',
     scanning: 'Scanning...',
-    noSongsFound: 'No supported audio files found in this folder.',
+    noSongsFound: 'here it was empty ??',
     totalSongs: 'Total',
     connectLive: 'Connect Live',
     mute: 'Mute',
@@ -162,7 +125,7 @@ const TRANSLATIONS: Record<Language, Translations> = {
     playbackFolderPlaceholder: 'Ej. ~/Music o ruta completa',
     scan: 'Escanear',
     scanning: 'Escaneando...',
-    noSongsFound: 'No se encontraron archivos de audio compatibles en esta carpeta.',
+    noSongsFound: 'aquí estaba vacío ??',
     totalSongs: 'Total',
     connectLive: 'Conectar en vivo',
     mute: 'Silenciar',
@@ -275,6 +238,65 @@ export default function App() {
     return localStorage.getItem('ludvis_custom_app_icon') || '/app-icon.png';
   });
 
+  const [dynamicBg, setDynamicBg] = useState(() => {
+    return localStorage.getItem('ludvis_dynamic_bg') !== 'false';
+  });
+
+  const [graphicsSettings, setGraphicsSettings] = useState<{
+    backend: string;
+    disable_dmabuf: boolean;
+    disable_compositing: boolean;
+  }>({
+    backend: 'auto',
+    disable_dmabuf: false,
+    disable_compositing: false,
+  });
+  const [isRestartRequired, setIsRestartRequired] = useState(false);
+
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'om-app' | 'utseende' | 'skjerm' | 'avansert' | 'om'>('om-app');
+  const sectionOmAppRef = useRef<HTMLDivElement>(null);
+  const sectionUtseendeRef = useRef<HTMLDivElement>(null);
+  const sectionSkjermRef = useRef<HTMLDivElement>(null);
+  const sectionAvansertRef = useRef<HTMLDivElement>(null);
+  const sectionOmRef = useRef<HTMLDivElement>(null);
+  const mprisSyncRef = useRef<{ position: number; timestamp: number }>({ position: 0, timestamp: 0 });
+
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>, tab: 'om-app' | 'utseende' | 'skjerm' | 'avansert' | 'om') => {
+    setActiveSettingsTab(tab);
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
+  const [showControls, setShowControls] = useState(false);
+  const controlsTimeoutRef = useRef<number | null>(null);
+
+  const triggerControlsVisibility = () => {
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      window.clearTimeout(controlsTimeoutRef.current);
+    }
+    controlsTimeoutRef.current = window.setTimeout(() => {
+      setShowControls(false);
+    }, 2500);
+  };
+
+  const handleMouseLeaveWindow = () => {
+    setShowControls(false);
+    if (controlsTimeoutRef.current) {
+      window.clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) {
+        window.clearTimeout(controlsTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const shouldShowControls = showControls || showSettings || showPlaylist;
+
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const handleTitleChange = (newTitle: string) => {
@@ -302,6 +324,25 @@ export default function App() {
   const handleResetIcon = () => {
     setAppIcon('/app-icon.png');
     localStorage.removeItem('ludvis_custom_app_icon');
+  };
+
+  const handleDynamicBgToggle = (enabled: boolean) => {
+    setDynamicBg(enabled);
+    localStorage.setItem('ludvis_dynamic_bg', String(enabled));
+  };
+
+  const handleGraphicsChange = async (key: string, value: any) => {
+    const updated = {
+      ...graphicsSettings,
+      [key]: value
+    };
+    setGraphicsSettings(updated);
+    setIsRestartRequired(true);
+    try {
+      await invoke('save_graphics_settings', { settings: updated });
+    } catch (err) {
+      console.error('Kunne ikke lagre grafikkinnstillinger:', err);
+    }
   };
 
   // Scan local folder
@@ -337,9 +378,17 @@ export default function App() {
     }
   };
 
-  // Scan on mount
+  // Scan on mount and load graphics settings
   useEffect(() => {
     scanLocalFolder();
+    
+    invoke<any>('get_graphics_settings')
+      .then((settings) => {
+        if (settings) {
+          setGraphicsSettings(settings);
+        }
+      })
+      .catch((err) => console.error('Failed to load graphics settings:', err));
   }, []);
 
   // Listen to MPRIS events from Rust backend
@@ -373,6 +422,13 @@ export default function App() {
         playerName: payload.player_name || 'None',
         volume: payload.volume !== undefined ? payload.volume : 0.7
       });
+      if (payload.position !== undefined) {
+        mprisSyncRef.current = {
+          position: payload.position,
+          timestamp: Date.now()
+        };
+        setCurrentTime(payload.position);
+      }
     }).then((unsub) => {
       unlisten = unsub;
     });
@@ -389,16 +445,22 @@ export default function App() {
 
   // Interpolate time progression locally while playing (MPRIS)
   useEffect(() => {
-    let interval: any;
+    let animationFrame: number;
+    
+    const updateProgress = () => {
+      if (mprisState.isPlaying && !isLocalMode && mprisSyncRef.current.timestamp > 0) {
+        const elapsed = (Date.now() - mprisSyncRef.current.timestamp) / 1000;
+        const estimatedTime = mprisSyncRef.current.position + elapsed;
+        setCurrentTime(Math.min(estimatedTime, mprisState.duration));
+      }
+      animationFrame = requestAnimationFrame(updateProgress);
+    };
+
     if (mprisState.isPlaying && !isLocalMode) {
-      interval = setInterval(() => {
-        setCurrentTime((prev) => {
-          if (prev >= mprisState.duration) return prev;
-          return prev + 1;
-        });
-      }, 1000);
+      animationFrame = requestAnimationFrame(updateProgress);
     }
-    return () => clearInterval(interval);
+    
+    return () => cancelAnimationFrame(animationFrame);
   }, [mprisState.isPlaying, mprisState.duration, isLocalMode]);
 
   // Sync volume with local audio element
@@ -494,6 +556,7 @@ export default function App() {
   };
 
   const toggleLike = () => {
+    if (isLocalMode && !currentTrack) return;
     const trackKey = isLocalMode 
       ? `local-${currentTrack.id}` 
       : `${mprisState.artist}-${mprisState.title}`;
@@ -549,22 +612,33 @@ export default function App() {
     }
   };
 
-  const currentTitle = isLocalMode ? currentTrack.title : (mprisState.title === 'No Active Player' ? t.noActivePlayer : mprisState.title);
-  const currentArtist = isLocalMode ? currentTrack.artist : (mprisState.artist === 'Unknown Artist' ? t.unknownArtist : mprisState.artist);
-  const currentCover = isLocalMode ? (currentTrack.coverUrl || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500&q=80') : mprisState.coverUrl;
-  const currentIsPlaying = isLocalMode ? isPlayingLocal : mprisState.isPlaying;
-  const currentDuration = isLocalMode ? localDuration : mprisState.duration;
-  const currentProgress = isLocalMode ? localTime : currentTime;
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0) {
+      e.stopPropagation();
+      getCurrentWindow().startResizeDragging('SouthEast').catch(console.error);
+    }
+  };
+
+  const currentTitle = isLocalMode ? (currentTrack ? currentTrack.title : t.noSongsFound) : (mprisState.title === 'No Active Player' ? t.noActivePlayer : mprisState.title);
+  const currentArtist = isLocalMode ? (currentTrack ? currentTrack.artist : '') : (mprisState.artist === 'Unknown Artist' ? t.unknownArtist : mprisState.artist);
+  const currentCover = isLocalMode ? ((currentTrack && currentTrack.coverUrl) || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500&q=80') : mprisState.coverUrl;
+  const currentIsPlaying = isLocalMode ? (currentTrack ? isPlayingLocal : false) : mprisState.isPlaying;
+  const currentDuration = isLocalMode ? (currentTrack ? localDuration : 0) : mprisState.duration;
+  const currentProgress = isLocalMode ? (currentTrack ? localTime : 0) : currentTime;
   const currentQuote = isLocalMode 
-    ? (currentTrack.lyrics || `${lang === 'no' ? 'Bane' : lang === 'es' ? 'Ruta' : 'Path'}: ${currentTrack.path}`) 
+    ? (currentTrack ? (currentTrack.lyrics || `${lang === 'no' ? 'Bane' : lang === 'es' ? 'Ruta' : 'Path'}: ${currentTrack.path}`) : '') 
     : (mprisState.album && mprisState.album !== 'Unknown Album' ? `Album: ${mprisState.album}` : `${t.activePlayer}: ${mprisState.playerName}`);
   
-  const isCurrentTrackLiked = likedTrackIds.has(
-    isLocalMode ? `local-${currentTrack.id}` : `${mprisState.artist}-${mprisState.title}`
-  );
+  const isCurrentTrackLiked = (isLocalMode && currentTrack) ? likedTrackIds.has(`local-${currentTrack.id}`) : (!isLocalMode ? likedTrackIds.has(`${mprisState.artist}-${mprisState.title}`) : false);
 
   return (
-    <div data-tauri-drag-region onMouseDown={handleMouseDown} className="min-h-screen w-full bg-radial from-zinc-800 to-zinc-950 flex flex-col items-center justify-center p-4 md:p-8 font-sans antialiased text-white select-none rounded-3xl border border-white/10 overflow-hidden relative">
+    <div 
+      data-tauri-drag-region 
+      onMouseDown={handleMouseDown} 
+      onMouseMove={triggerControlsVisibility}
+      onMouseLeave={handleMouseLeaveWindow}
+      className="min-h-screen w-full bg-radial from-zinc-800 to-zinc-950 flex flex-col items-center justify-center p-4 md:p-8 font-sans antialiased text-white select-none rounded-3xl border border-white/10 overflow-hidden relative"
+    >
       
       {/* Hidden local audio player */}
       <audio 
@@ -575,10 +649,28 @@ export default function App() {
       />
 
       {/* Background ambient glow matching the cover art colors */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-pink-500/20 via-purple-600/10 to-sky-400/20 rounded-full blur-[120px] pointer-events-none" />
+      {dynamicBg ? (
+        <div 
+          className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden"
+          style={{ transform: 'translate3d(0, 0, 0)' }}
+        >
+          <img 
+            key={currentCover}
+            src={currentCover}
+            className="w-full h-full object-cover blur-[64px] scale-110 pointer-events-none animate-fade-in-bg"
+            style={{ 
+              willChange: 'transform, opacity',
+              transform: 'translate3d(0, 0, 0)'
+            }}
+            alt=""
+          />
+        </div>
+      ) : (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-pink-500/20 via-purple-600/10 to-sky-400/20 rounded-full blur-[120px] pointer-events-none" />
+      )}
 
       {/* Top Left Settings / Back Button */}
-      <div className="absolute top-6 left-6 z-50">
+      <div className={`absolute top-6 left-6 z-50 transition-opacity duration-300 ${shouldShowControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <button
           onClick={() => setShowSettings(!showSettings)}
           className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 hover:border-white/20 transition-all text-zinc-300 hover:text-white cursor-pointer flex items-center justify-center"
@@ -598,7 +690,7 @@ export default function App() {
       </div>
 
       {/* Top Right Close Button */}
-      <div className="absolute top-6 right-6 z-50">
+      <div className={`absolute top-6 right-6 z-50 transition-opacity duration-300 ${shouldShowControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <button
           onClick={() => {
             try {
@@ -618,90 +710,342 @@ export default function App() {
 
       {showSettings ? (
         /* Settings Page Layout */
-        <div className="relative z-10 w-full max-w-xl bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl transition-all duration-300 flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-200">
+        <div className="relative z-10 w-full max-w-4xl bg-[#1a181c]/95 border border-white/10 backdrop-blur-2xl rounded-3xl p-6 shadow-2xl transition-all duration-300 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none text-left">
           
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-lg flex items-center justify-center p-1.5">
-                <img src={appIcon} className="w-full h-full object-contain rounded-lg" alt="App Icon" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-white">{lang === 'no' ? 'Innstillinger' : 'Settings'}</h2>
-                <p className="text-xs text-zinc-400 font-light">{lang === 'no' ? 'Konfigurer Ludvis Mediaspiller' : 'Configure Ludvis Media Player'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Version / Info Section */}
-          <div className="flex flex-col gap-2 bg-white/5 border border-white/5 rounded-2xl p-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-300">{lang === 'no' ? 'Om applikasjonen' : 'About Application'}</h3>
-            <div className="flex justify-between items-center text-xs py-2 border-b border-white/5">
-              <span className="text-zinc-400">{lang === 'no' ? 'Navn' : 'Name'}</span>
-              <span className="text-zinc-200 font-medium">{appTitle}</span>
-            </div>
-            <div className="flex justify-between items-center text-xs py-2 border-b border-white/5">
-              <span className="text-zinc-400">{lang === 'no' ? 'Versjon' : 'Version'}</span>
-              <span className="text-zinc-200 font-mono">0.1.1</span>
-            </div>
-            <div className="flex justify-between items-center text-xs py-2">
-              <span className="text-zinc-400">{lang === 'no' ? 'Plattform' : 'Platform'}</span>
-              <span className="text-zinc-200 uppercase font-mono">Tauri v2 + React</span>
-            </div>
-          </div>
-
-          {/* Change Icon Section */}
-          <div className="flex flex-col gap-4 bg-white/5 border border-white/5 rounded-2xl p-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-300">{lang === 'no' ? 'App-ikon' : 'App Icon'}</h3>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              {/* Icon Preview */}
-              <div className="relative group w-24 h-24 rounded-2xl overflow-hidden bg-zinc-900 border border-white/15 shadow-xl flex items-center justify-center p-2 transition-all hover:border-white/30">
-                <img src={appIcon} className="w-full h-full object-contain rounded-xl" alt="App Icon Preview" />
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
-                  <span className="text-[10px] text-white font-medium uppercase tracking-wider">{lang === 'no' ? 'Forhåndsvisning' : 'Preview'}</span>
+          <div className="flex flex-col md:flex-row gap-6 min-h-[500px]">
+            {/* Sidebar Column */}
+            <div className="w-full md:w-60 flex flex-col gap-6 shrink-0 pt-2">
+              {/* Sidebar Header */}
+              <div className="flex items-center gap-3 px-2">
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-800/50 border border-white/10 shadow-lg flex items-center justify-center p-1.5 shrink-0">
+                  <img src={appIcon} className="w-full h-full object-contain rounded-lg" alt="App Icon" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <h2 className="text-base font-bold tracking-tight text-white truncate">{lang === 'no' ? 'Innstillinger' : 'Settings'}</h2>
+                  <p className="text-[10px] text-zinc-400 font-light truncate">{lang === 'no' ? 'Konfigurer Ludvis Mediaspiller' : 'Configure Ludvis Media Player'}</p>
                 </div>
               </div>
 
-              {/* Upload controls */}
-              <div className="flex-1 flex flex-col gap-3 w-full">
-                <p className="text-xs text-zinc-400 font-light leading-relaxed">
-                  {lang === 'no' 
-                    ? 'Tilpass utseendet til mediaspilleren ved å laste opp et eget app-ikon (støtter PNG, JPG, WebP og SVG).'
-                    : 'Personalize the media player by uploading a custom app icon (supports PNG, JPG, WebP, and SVG).'}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <label className="px-4 py-2 bg-white/10 hover:bg-white/15 active:scale-95 text-xs text-white font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border border-white/10">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                    </svg>
-                    <span>{lang === 'no' ? 'Last opp eget bilde' : 'Upload custom image'}</span>
+              {/* Sidebar Menu Items */}
+              <nav className="flex flex-col gap-1">
+                <button
+                  onClick={() => scrollToSection(sectionOmAppRef, 'om-app')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                    activeSettingsTab === 'om-app'
+                      ? 'bg-white/10 text-white shadow-inner'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4 shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.083.985l-.04.02a.75.75 0 11-1.084-.985zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{lang === 'no' ? 'Om applikasjonen' : 'About application'}</span>
+                </button>
+
+                <button
+                  onClick={() => scrollToSection(sectionUtseendeRef, 'utseende')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                    activeSettingsTab === 'utseende'
+                      ? 'bg-white/10 text-white shadow-inner'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4 shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-1.245c0-.778-.367-1.478-.94-1.928Zm0 0a5.058 5.058 0 0 1 8.722-.516M19.5 10.5c.02.086.03.176.03.268A3.5 3.5 0 1 1 16 7.25c.092 0 .182.01.268.03m-2.699 9.902-.123-.008a3 3 0 0 1-2.24-2.24l-.008-.123m8.962-2.127c-.288 0-.578-.023-.868-.068a3 3 0 0 1-2.24-2.24c-.045-.29-.068-.58-.068-.868M9 7.5h.008v.008H9V7.5Zm.375 2.25h.007v.008H9.375V9.75Zm-.375 3h.008v.008H9v-.008Zm10.5-5.25h.008v.008h-.008V7.5Zm-.375 2.25h.008v.008h-.008V9.75Zm-.375 3h.008v.008h-.008v-.008Z" />
+                  </svg>
+                  <span>{lang === 'no' ? 'Utseende' : 'Appearance'}</span>
+                </button>
+
+                <button
+                  onClick={() => scrollToSection(sectionSkjermRef, 'skjerm')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                    activeSettingsTab === 'skjerm'
+                      ? 'bg-white/10 text-white shadow-inner'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4 shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25" />
+                  </svg>
+                  <span>{lang === 'no' ? 'Skjerm og ytelse' : 'Display & performance'}</span>
+                </button>
+
+                <button
+                  onClick={() => scrollToSection(sectionAvansertRef, 'avansert')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                    activeSettingsTab === 'avansert'
+                      ? 'bg-white/10 text-white shadow-inner'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4 shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+                  </svg>
+                  <span>{lang === 'no' ? 'Avansert' : 'Advanced'}</span>
+                </button>
+
+                <button
+                  onClick={() => scrollToSection(sectionOmRef, 'om')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                    activeSettingsTab === 'om'
+                      ? 'bg-white/10 text-white shadow-inner'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4 shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.083.985l-.04.02a.75.75 0 11-1.084-.985zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{lang === 'no' ? 'Om' : 'About'}</span>
+                </button>
+              </nav>
+            </div>
+
+            {/* Right Scrollable Content Column */}
+            <div className="flex-1 bg-[#131214]/90 border border-white/5 rounded-3xl p-6 overflow-y-auto max-h-[480px] scroll-smooth flex flex-col gap-8 scrollbar-thin scrollbar-thumb-white/10">
+              
+              {/* Section: Om applikasjonen */}
+              <div ref={sectionOmAppRef} className="flex flex-col gap-4">
+                <h3 className="text-xl font-bold tracking-tight text-white">{lang === 'no' ? 'Om applikasjonen' : 'About the application'}</h3>
+                
+                <div className="flex flex-col gap-2 bg-[#201f22]/50 border border-white/5 rounded-2xl p-4">
+                  <div className="flex justify-between items-center text-xs py-2.5 border-b border-white/5">
+                    <span className="text-zinc-400">{lang === 'no' ? 'Navn' : 'Name'}</span>
+                    <span className="text-zinc-200 font-medium">{appTitle}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs py-2.5 border-b border-white/5">
+                    <span className="text-zinc-400">{lang === 'no' ? 'Versjon' : 'Version'}</span>
+                    <span className="text-zinc-200 font-mono">0.1.9</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs py-2.5">
+                    <span className="text-zinc-400">{lang === 'no' ? 'Plattform' : 'Platform'}</span>
+                    <span className="text-zinc-200 font-mono text-[10px] uppercase tracking-wider">TAURI V2 + REACT</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section: Utseende */}
+              <div ref={sectionUtseendeRef} className="flex flex-col gap-4">
+                <h3 className="text-xl font-bold tracking-tight text-white">{lang === 'no' ? 'Utseende' : 'Appearance'}</h3>
+                
+                {/* App-ikon Card */}
+                <div className="flex flex-col gap-2.5 bg-[#201f22]/50 border border-white/5 rounded-2xl p-5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300">{lang === 'no' ? 'App-ikon' : 'App Icon'}</span>
+                  <div className="flex flex-col sm:flex-row items-center gap-6 mt-1.5">
+                    {/* Icon Preview */}
+                    <div className="relative group w-24 h-24 rounded-2xl overflow-hidden bg-[#18171a] border border-white/10 shadow-xl flex items-center justify-center p-2 transition-all hover:border-white/20 shrink-0">
+                      <img src={appIcon} className="w-full h-full object-contain rounded-xl" alt="App Icon Preview" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                        <span className="text-[10px] text-white font-medium uppercase tracking-wider">{lang === 'no' ? 'Forhåndsvisning' : 'Preview'}</span>
+                      </div>
+                    </div>
+
+                    {/* Upload controls */}
+                    <div className="flex-1 flex flex-col gap-3 w-full">
+                      <p className="text-xs text-zinc-400 font-light leading-relaxed">
+                        {lang === 'no' 
+                          ? 'Tilpass utseendet til mediaspilleren ved å laste opp et eget app-ikon.'
+                          : 'Customize the look of the media player by uploading a custom app icon.'}
+                        <span className="block text-[10px] text-zinc-500 font-normal mt-0.5">
+                          {lang === 'no' ? 'Støtter PNG, JPG, WebP og SVG.' : 'Supports PNG, JPG, WebP and SVG.'}
+                        </span>
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <label className="px-4 py-2 bg-white/5 hover:bg-white/10 active:scale-95 text-xs text-white font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border border-white/5">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-4 h-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                          </svg>
+                          <span>{lang === 'no' ? 'Last opp eget bilde...' : 'Upload custom image...'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleIconChange}
+                            className="hidden"
+                          />
+                        </label>
+                        
+                        {appIcon !== '/app-icon.png' && (
+                          <button
+                            onClick={handleResetIcon}
+                            className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/15 active:scale-95 text-xs text-rose-400 font-semibold rounded-xl transition-all cursor-pointer border border-rose-500/20"
+                          >
+                            {lang === 'no' ? 'Nullstill ikon' : 'Reset icon'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dynamic Background Card */}
+                <div className="flex items-center justify-between gap-4 bg-[#201f22]/50 border border-white/5 rounded-2xl p-5">
+                  <div className="flex flex-col pr-4">
+                    <span className="text-xs font-semibold text-zinc-200">
+                      {lang === 'no' ? 'Fargelegg bakgrunn etter album' : 'Color background by album art'}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-light mt-0.5 leading-relaxed">
+                      {lang === 'no'
+                        ? 'Lar bakgrunnen automatisk endre seg for å matche fargene på albumet som spilles.'
+                        : 'Allows the background to automatically change to match the colors of the album playing.'}
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
                     <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleIconChange}
-                      className="hidden"
+                      type="checkbox"
+                      checked={dynamicBg}
+                      onChange={(e) => handleDynamicBgToggle(e.target.checked)}
+                      className="sr-only peer"
                     />
+                    <div className="w-10 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white peer-checked:after:bg-zinc-950 peer-checked:after:border-white"></div>
                   </label>
-                  
-                  {appIcon !== '/app-icon.png' && (
+                </div>
+              </div>
+
+              {/* Section: Skjerm og ytelse */}
+              <div ref={sectionSkjermRef} className="flex flex-col gap-4">
+                <h3 className="text-xl font-bold tracking-tight text-white">{lang === 'no' ? 'Skjerm og ytelse' : 'Display & performance'}</h3>
+                
+                <div className="flex flex-col gap-4 bg-[#201f22]/50 border border-white/5 rounded-2xl p-5">
+                  {/* Graphics Engine Select */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-semibold text-zinc-200">
+                        {lang === 'no' ? 'Grafikkmotor (GDK Backend)' : 'Graphics Engine (GDK Backend)'}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-light mt-0.5 leading-relaxed">
+                        {lang === 'no' 
+                          ? 'Velg grafikkmotor. Wayland er moderne, X11 kan løse hakking.' 
+                          : 'Select graphics engine. Wayland is modern, X11 can resolve stuttering.'}
+                      </span>
+                    </div>
+                    <select
+                      value={graphicsSettings.backend}
+                      onChange={(e) => handleGraphicsChange('backend', e.target.value)}
+                      className="px-3 py-1.5 bg-[#18171a] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-white/30 cursor-pointer w-full sm:w-auto text-center"
+                    >
+                      <option value="auto">{lang === 'no' ? 'Automatisk (Standard)' : 'Automatic (Default)'}</option>
+                      <option value="x11">X11 (Kompatibilitetsmodus)</option>
+                      <option value="wayland">Wayland</option>
+                    </select>
+                  </div>
+
+                  {/* Disable DMA-buf renderer */}
+                  <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-4">
+                    <div className="flex flex-col pr-4">
+                      <span className="text-xs font-semibold text-zinc-200">
+                        {lang === 'no' ? 'Deaktiver DMA-buf rendering' : 'Disable DMA-buf rendering'}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-light mt-0.5 leading-relaxed">
+                        {lang === 'no'
+                          ? 'Løser ofte flimring eller tom skjerm på Intel/Nvidia GPUer.'
+                          : 'Often resolves flickering or blank screens on Intel/Nvidia GPUs.'}
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={graphicsSettings.disable_dmabuf}
+                        onChange={(e) => handleGraphicsChange('disable_dmabuf', e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white peer-checked:after:bg-zinc-950 peer-checked:after:border-white"></div>
+                    </label>
+                  </div>
+
+                  {/* Disable WebKit Compositing mode */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-col pr-4">
+                      <span className="text-xs font-semibold text-zinc-200">
+                        {lang === 'no' ? 'Deaktiver Compositing Mode' : 'Disable Compositing Mode'}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-light mt-0.5 leading-relaxed">
+                        {lang === 'no'
+                          ? 'Tvinger standard rendering. Kan hjelpe mot lagging under Linux.'
+                          : 'Forces basic rendering. Can help reduce lag under Linux.'}
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={graphicsSettings.disable_compositing}
+                        onChange={(e) => handleGraphicsChange('disable_compositing', e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white peer-checked:after:bg-zinc-950 peer-checked:after:border-white"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section: Avansert */}
+              <div ref={sectionAvansertRef} className="flex flex-col gap-4">
+                <h3 className="text-xl font-bold tracking-tight text-white">{lang === 'no' ? 'Avansert' : 'Advanced'}</h3>
+                
+                <div className="flex flex-col gap-4 bg-[#201f22]/50 border border-white/5 rounded-2xl p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-semibold text-zinc-200">
+                        {lang === 'no' ? 'Nullstill innstillinger' : 'Reset settings'}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-light mt-0.5 leading-relaxed">
+                        {lang === 'no'
+                          ? 'Gjenoppretter standardtittel og opprinnelig app-ikon.'
+                          : 'Restores the default application title and the original app icon.'}
+                      </span>
+                    </div>
                     <button
-                      onClick={handleResetIcon}
+                      onClick={() => {
+                        handleTitleChange('Ludvis - Mediaspiller');
+                        handleResetIcon();
+                      }}
                       className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/15 active:scale-95 text-xs text-rose-400 font-semibold rounded-xl transition-all cursor-pointer border border-rose-500/20"
                     >
-                      {lang === 'no' ? 'Nullstill ikon' : 'Reset icon'}
+                      {lang === 'no' ? 'Nullstill nå' : 'Reset now'}
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
+
+              {/* Section: Om */}
+              <div ref={sectionOmRef} className="flex flex-col gap-4">
+                <h3 className="text-xl font-bold tracking-tight text-white">{lang === 'no' ? 'Om' : 'About'}</h3>
+                
+                <div className="bg-[#201f22]/50 border border-white/5 rounded-2xl p-5 flex flex-col gap-3">
+                  <p className="text-xs text-zinc-300 leading-relaxed font-light">
+                    {lang === 'no'
+                      ? 'Ludvis Mediaspiller er en elegant, maskinvareakselerert mediespiller for Linux, bygget med Tauri v2 og React.'
+                      : 'Ludvis Media Player is an elegant, hardware-accelerated media player for Linux, built with Tauri v2 and React.'}
+                  </p>
+                  <p className="text-[10px] text-zinc-500 font-mono">
+                    © 2026 Ludvig. All rights reserved.
+                  </p>
+                </div>
+              </div>
+
+              {/* Restart Notification */}
+              {isRestartRequired && (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 mt-0.5 flex-shrink-0">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  <div className="flex-1 flex flex-col gap-1 text-left">
+                    <span className="text-xs font-semibold">{lang === 'no' ? 'Restart påkrevd' : 'Restart Required'}</span>
+                    <span className="text-[10px] leading-relaxed text-amber-200/80">
+                      {lang === 'no' 
+                        ? 'Innstillingene for grafikkmotor og WebKit krever at du starter applikasjonen på nytt for å tre i kraft.' 
+                        : 'Graphics engine and WebKit options require an application restart to take effect.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
 
-          {/* Footer Back Button */}
-          <div className="mt-4 flex justify-end">
+          {/* Footer Area with Done Button */}
+          <div className="mt-4 pt-2 border-t border-white/5 flex justify-end">
             <button
               onClick={() => setShowSettings(false)}
-              className="px-6 py-2.5 bg-white text-zinc-950 font-bold text-xs rounded-xl shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer uppercase tracking-wider"
+              className="px-6 py-2 bg-[#423d4f] hover:bg-[#524b61] active:scale-95 text-zinc-100 font-semibold text-xs rounded-xl shadow-lg transition-all cursor-pointer uppercase tracking-wider"
             >
               {lang === 'no' ? 'Ferdig' : 'Done'}
             </button>
@@ -723,7 +1067,7 @@ export default function App() {
                   e.currentTarget.blur();
                 }
               }}
-              className="text-3xl font-light tracking-wider text-zinc-100 uppercase outline-none hover:bg-white/5 rounded-lg px-4 py-1 cursor-text transition-all"
+              className="text-3xl text-zinc-100 outline-none hover:bg-white/5 rounded-lg px-4 py-1 cursor-text transition-all font-cursive normal-case"
               title={lang === 'no' ? 'Klikk for å endre tittel' : 'Click to change title'}
             >
               {appTitle}
@@ -823,7 +1167,7 @@ export default function App() {
                 isPlaying={currentIsPlaying}
                 onPlayPause={handlePlayPauseToggle}
                 coverUrl={currentCover}
-                albumName={isLocalMode ? currentTrack.title : mprisState.album}
+                albumName={isLocalMode ? (currentTrack ? currentTrack.title : '') : mprisState.album}
                 artistName={currentArtist}
                 size={360}
                 currentTime={currentProgress}
@@ -895,7 +1239,7 @@ export default function App() {
                       className={`relative w-full h-1.5 bg-white/10 rounded-full mb-1 ${isLocalMode ? 'cursor-pointer' : 'cursor-default'}`}
                     >
                       <div 
-                        className="absolute top-0 left-0 h-full bg-white rounded-full transition-all duration-300"
+                        className={`absolute top-0 left-0 h-full bg-white rounded-full ${isLocalMode ? 'transition-all duration-200 ease-linear' : 'transition-none'}`}
                         style={{ width: `${currentDuration > 0 ? (currentProgress / currentDuration) * 100 : 0}%` }}
                       />
                     </div>
@@ -1124,6 +1468,24 @@ export default function App() {
           </main>
         </>
       )}
+
+      {/* Bottom Right Resize Grab Handle */}
+      <div 
+        onMouseDown={handleResizeMouseDown}
+        className={`absolute bottom-1 right-1 z-50 w-6 h-6 flex items-end justify-end cursor-se-resize p-1 select-none transition-opacity duration-300 text-white/20 hover:text-white/60 active:text-white ${shouldShowControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        title={lang === 'no' ? 'Dra for å endre størrelse' : 'Drag to resize'}
+      >
+        <svg 
+          className="w-3 h-3 transition-colors duration-150" 
+          viewBox="0 0 10 10" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <line x1="8" y1="2" x2="2" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="8" y1="5" x2="5" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="8" y1="8" x2="8" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </div>
     </div>
   );
 }
